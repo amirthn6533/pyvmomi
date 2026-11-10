@@ -15,10 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import tests
 
 from pyVim import connect
-from pyVmomi import vim
+from pyVmomi import SoapAdapter, vim
 
 
 class SoapAdapterTests(tests.VCRTestBase):
@@ -28,4 +29,44 @@ class SoapAdapterTests(tests.VCRTestBase):
 
         stub = connect.SoapStubAdapter()
         vim_session = connect.VimSessionOrientedStub(stub, login_fail)
-        self.assertRaises(vim.fault.NotAuthenticated, vim_session.InvokeAccessor, "mo", "info")
+        self.assertRaises(
+            vim.fault.NotAuthenticated,
+            vim_session.InvokeAccessor,
+            "mo",
+            "info"
+        )
+
+    def test_session_oriented_stub_deepcopy(self):
+        stub = connect.SoapStubAdapter(
+            host="example.com", version="vim.version.version1"
+        )
+        session_stub = SoapAdapter.SessionOrientedStub(stub, lambda s: None)
+        copied_session_stub = copy.deepcopy(session_stub)
+        self.assertIs(copied_session_stub, session_stub)
+
+        login_method = connect.VimSessionOrientedStub.makeUserLoginMethod(
+            "admin", "pass"
+        )
+        vim_session = connect.VimSessionOrientedStub(stub, login_method)
+        copied_vim_session = copy.deepcopy(vim_session)
+        self.assertIs(copied_vim_session, vim_session)
+
+    def test_managed_object_deepcopy_with_session_oriented_stub(self):
+        stub = connect.SoapStubAdapter(
+            host="example.com", version="vim.version.version1"
+        )
+        login_method = connect.VimSessionOrientedStub.makeUserLoginMethod(
+            "admin", "pass"
+        )
+        vim_session = connect.VimSessionOrientedStub(stub, login_method)
+        si = vim.ServiceInstance("ServiceInstance", vim_session)
+
+        si_copy = copy.deepcopy(si)
+        self.assertEqual(str(si_copy), str(si))
+        self.assertIs(si_copy._stub, vim_session)
+
+        # Also verify collection deepcopy containing managed objects
+        objects_list = [si, si]
+        list_copy = copy.deepcopy(objects_list)
+        self.assertEqual(len(list_copy), 2)
+        self.assertIs(list_copy[0]._stub, vim_session)

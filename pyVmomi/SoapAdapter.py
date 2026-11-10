@@ -1764,3 +1764,11 @@ class SessionOrientedStub(StubAdapterBase):
         if self.state == self.STATE_AUTHENTICATED:
             self.state = self.STATE_UNAUTHENTICATED
         self.lock.release()
+
+    # Need to override the deepcopy method. Since the stub is not deep
+    # copyable due to the thread lock and shared connection state, deep copy
+    # of a managed object fails. Further, different instances of a managed
+    # object still share the same session stub. Hence, returning self here
+    # is fine.
+    def __deepcopy__(self, memo):
+        return self
